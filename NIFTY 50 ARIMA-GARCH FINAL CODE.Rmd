@@ -1,0 +1,400 @@
+---
+title: "ARIMA-GARCH"
+author: "ADHIL VENGAT"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+## Installing packages
+```{r, eval=FALSE,echo=TRUE, warning=FALSE, message=FALSE}
+rm(list=ls())
+install.packages("FinTS")
+install.packages("rugarch")
+install.packages("tseries")
+install.packages("dynlm")
+install.packages("vars")
+install.packages("nlWaldTest")
+install.packages("broom")
+install.packages("car")
+install.packages("sandwich")
+install.packages("knitr")
+install.packages("forecast")
+install.packages("ggplot2")
+install.packages("pdfetch")
+install.packages("tsbox")
+install.packages("stats")
+install.packages("zoo")
+install.packages("vrtest")
+install.packages("dsEssex")
+install.packages("quantmod")
+install.packages("PerformanceAnalytics")
+install.packages("MLmetrics")
+```
+## Loading packages
+```{r, eval=FALSE,echo=TRUE, warning=FALSE, message=FALSE}
+library(FinTS)                   #For Arch Test
+library(rugarch)                 #For GARCH model
+library(tseries)                 #For unit root test
+library(dynlm)                   #For using lags in the model
+library(vars)                    #For using var
+library(nlWaldTest)              #For testing non linear wald test
+library(lmtest)                  #For BP test
+library(broom)                   #For table presentation
+library(car)                     #For robust standard errors
+library(sandwich)
+library(knitr)
+library(forecast)
+library(ggplot2)
+library(pdfetch)                 #For importing Financial Data
+library(tsbox)
+library(stats)
+library(zoo)
+library(vrtest)
+library(dsEssex)
+library(xts)
+require(dsEssex)
+library(quantmod)
+library(PerformanceAnalytics)
+library(MLmetrics)
+```
+
+## Setting Theme
+```{r}
+theme_set(theme_bw())
+```
+
+
+## Collecting Data
+```{r}
+data <- read.csv("/Users/adhilvengat/Downloads/^NSEI.csv", header=TRUE, stringsAsFactors=FALSE)
+df <- pdfetch_YAHOO(c("^nsei"),fields = c("close"),from = as.Date("2010-01-01"),to = as.Date("2021-01-01"))
+```
+
+## Visualising the series
+
+```{r}
+chart_Series(df)
+```
+##Converting to time series object
+```{r}
+dfts<- ts(df, start = c(2010,4),frequency = 365)
+#data.frame(dfts)
+```
+
+## Step 1 Normality Test and log transformation if needed
+```{r}
+shapiro.test(dfts)
+# it rejects null hypo since p-value  < 2.2^e-16
+```
+
+##Visualise
+```{r}
+require(dsEssex)
+plot.ts(dfts)
+title("Time series plot of Nifty50")
+plot(df)
+hist(dfts,main="Histogram of Nifty50",freq=FALSE,col="grey")
+plot.ts(diff(dfts),ylab = "Change in Nifty50")
+title("First Difference of Nifty50")
+```
+## Daily Returns ( see vid for exp)
+```{r}
+return <- CalculateReturns(df)
+return <- na.omit(return)
+hist(return)
+chart.Histogram(return,
+                methods = c('add.density', 'add.normal'),
+                colorset = c('blue', 'green', 'red'))
+# Green curve is density and Blue curve is distribution curve.
+chartSeries(return)
+```
+
+## Annualized volatility (showing how volatilty changed over years)
+```{r}
+
+chart.RollingPerformance(R = return["2010::2020"],
+                         width = 252,
+                         FUN = "sd.annualized",
+                         scale = 252,
+                         main = "Apple's yearly rolling volatility")
+```
+## Check for stationarity of varience and mean
+```{r}
+plot.ts(return)
+title("Time series Plot of log of Nifty50")
+
+Auto.VR(return)  # Variance is not constant
+adf.test(return,k=3)
+# As we can see the H1 is true, the return is stationary no need of differencing
+```
+## Determining PACF(AR,p) and ACF(MA,q)
+```{r}
+acf.return  <-acf(return,main = "ACF(MA) of Nifty50", lag.max=50)
+pacf.return <-pacf(return,main = "PACF(AR) of Nifty50", lag.max=50)
+
+# ARIMA(6,1,5) is observed from plot.
+
+```
+##Step 4 Estimating ARIMA model using auto-arima
+```{r}
+auto.arima(return)
+# ARIMA(5,0,2) for returns aremstationary unlike closing price
+
+arima502 <- auto.arima(return)
+summary(arima502)
+tsdiag(arima502)
+checkresiduals(arima502)
+autoplot(arima502)
+
+
+#residuals being added
+
+arimar <- arima502$residuals
+ggtsdisplay(arimar, main="NIFTY 50 ARIMA residuals")
+```
+## Step 5: Estimate mean Equation r = beta + error
+```{r}
+gsp.mean <- dynlm(arimar ~ 1)
+summary(gsp.mean)
+
+```
+
+## Step 6 Determination of ARCH effect
+```{r}
+ehatsq <- ts(resid(gsp.mean)^2)
+gsp.archef <- dynlm(ehatsq ~ L(ehatsq))
+summary(gsp.archef)
+
+```
+## Testing Arch effect
+```{r}
+
+gsp.archef1 <- ArchTest(arimar, lags=1, demean = TRUE)
+gsp.archef1
+```
+
+
+# 1. sGARCH model with constant mean
+```{r}
+
+s <- ugarchspec(mean.model = list(armaOrder = c(5,2)),
+                variance.model = list(model = "sGARCH"),
+                distribution.model = 'norm')
+m <- ugarchfit(data = return, spec = s)
+m
+plot(m,which ="all")
+f <- ugarchforecast(fitORspec = m, n.ahead = 20)
+plot(fitted(f))
+plot(sigma(f))
+
+```
+
+## Application example - portfolio allocation
+```{r}
+model = m 
+v <- sqrt(252) * sigma(model) # Annualised volatilty stored in v
+w <- 0.1/v                    # " w " is gthe weight assignrd to risky assets....i.e 10% risk in here (0.1)
+plot(merge(v, w), multi.panel = T)
+
+# Basically we can understand how much we can expect to risky assets using the respective model
+```
+
+## 2. GARCH with sstd
+```{r}
+
+s <- ugarchspec(mean.model = list(armaOrder = c(5,2)),
+                variance.model = list(model = "sGARCH"),
+                distribution.model = 'sstd')
+m <- ugarchfit(data = return, spec = s)
+m
+plot(m, which="all")
+```
+
+
+## 3. ARMA (5,2) GJR-GARCH(1,1)
+```{r}
+
+s <- ugarchspec(mean.model = list(armaOrder = c(5,2)),
+                variance.model = list(model = "gjrGARCH"),
+                distribution.model = 'sstd')
+m <- ugarchfit(data = return, spec = s)
+m
+plot(m , which="all")
+```
+
+
+
+## 4. ARMA(5,2)- eGARCH
+```{r}
+
+s <- ugarchspec(mean.model = list(armaOrder = c(5,2)),
+                variance.model = list(model = "eGARCH"),
+                distribution.model = 'sstd')
+m <- ugarchfit(data = return, spec = s)
+m
+plot(m , which="all")
+```
+## 5. ARMA(5,2)- ApARCH
+```{r}
+
+s <- ugarchspec(mean.model = list(armaOrder = c(2,2)),
+                variance.model = list(model = "apARCH"),
+                distribution.model = 'sstd')
+m <- ugarchfit(data = return, spec = s)
+m
+plot(m , which="all")
+```
+
+## Simulating the stock price from model(returns )
+## 4. ARMA(5,2)- eGARCH
+```{r}
+
+s <- ugarchspec(mean.model = list(armaOrder = c(4,2)),
+                variance.model = list(model = "eGARCH"),
+                distribution.model = 'sstd')
+m <- ugarchfit(data = return, spec = s)
+m
+plot(m , which="all")
+```
+
+
+```{r}
+
+#s <- ugarchspec(mean.model = list(armaOrder = c(5,2)),variance.model = list(model = "eGARCH"),distribution.model = 'sstd')
+
+m <- ugarchfit(data = return, spec = s)
+m
+sfinal <- s
+setfixed(sfinal) <- as.list(coef(m))
+# Forecasting for 3 year 
+#f2020 <- ugarchforecast(data = return["/2020-12"], fitORspec = sfinal, n.ahead = 30, n.roll = 2663, out.sample = 2663)
+par(mfrow = c(1,1))
+#plot(sigma(f2020))
+sim <- ugarchpath(spec = sfinal,
+                  m.sim = 2,
+                  n.sim = 1*10,
+                  rseed = 123,n.ahead = 10, n.roll = 2664, data = return, out.sample = 2664)
+plot.zoo(fitted(sim))
+plot.zoo(sigma(sim))
+tail(df)
+p <- 13981.75*apply(fitted(sim), 2, 'cumsum') + 13981.75
+matplot(p, type = "l", lwd = 3)
+```
+
+## Forecasting for next 30 days
+```{r}
+n1_garch <- m
+n1_garch_predict <- ugarchboot(n1_garch, n.ahead = 10,method = c("Partial","Full")[1])
+n1_garch_predict
+
+plot(n1_garch_predict,which = "all")
+```
+
+
+
+
+
+```{r}
+actual <- pdfetch_YAHOO(c("^nsei"),fields = c("close"),from = as.Date("2021-01-01"),to = as.Date("2021-01-15"))
+chart_Series(actual)
+
+z1 <- actual
+x <- c(1,2,3,4,5,6,7,8,9,10)
+count <- 0
+for (i in x){
+  z1$`^nsei`[i]<-p[,2][i] 
+  count=count+1
+}
+pred = z1
+
+#MAE
+MAE(pred, actual)
+
+
+#MAPE
+MAPE(pred, actual)
+
+#MSE
+MSE(pred, actual)
+
+#RMSE
+RMSE(pred, actual)
+
+```
+
+
+
+
+```{r}
+t=1:10
+z1= fact_check
+x <- c(1,2,3,4,5,6,7,8,9,10)
+count <- 0
+for (i in x){
+  z1$`^nsei`[i]<-p[,2][i] 
+  count=count+1
+}
+z = z1
+w= p[,2]
+plot(actual, type="l", col="green", lwd=10,xlim = 16000, xlab="DAYS", ylab="CLOSING PRICE")
+lines(z , col="red", lwd=1)
+title("ACTUAL vs FORECAST")
+legend("left",14500,legend=c("Actual","Forecast"),col=c("green","red"),lty=1)
+#legend(2,1,c("actual","forecast"), lwd=c(5,2), col=c("green","red"))
+
+
+
+
+```
+```{r}
+p[,2]
+z1= fact_check
+x <- c(1,2,3,4,5,6,7,8,9,10)
+count <- 0
+for (i in x){
+  z1$`^nsei`[i]<-p[,2][i] 
+  count=count+1
+}
+
+```
+
+
+
+```{r}
+
+MAPE(z, fact_check)
+
+
+```
+
+
+
+
+
+
+
+```{r}
+
+```
+
+
+
+```{r}
+
+```
+
+
+
+```{r}
+
+```
+
+
+
+```{r}
+
+```
+
+
+

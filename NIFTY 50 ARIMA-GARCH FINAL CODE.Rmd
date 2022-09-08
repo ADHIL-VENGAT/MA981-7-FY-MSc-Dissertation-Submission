@@ -361,12 +361,6 @@ for (i in x){
 
 
 
-```{r}
-
-MAPE(z, fact_check)
-
-
-```
 
 
 
@@ -392,8 +386,105 @@ MAPE(z, fact_check)
 
 
 
-```{r}
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+## Dr. Bharatendra Rai contribution to ARIMA-GARCH Models was great inspiration to model the ARIMA-GARCH Family modelling. https://drive.google.com/file/d/1B8lpjkOwfVpzasZDb3o_ojtFyGc6hGKQ/view where inspiration for the coding of the model.
 ```
 
 

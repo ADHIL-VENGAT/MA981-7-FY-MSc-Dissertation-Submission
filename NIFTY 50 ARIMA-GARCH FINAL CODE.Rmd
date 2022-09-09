@@ -247,7 +247,7 @@ plot(m , which="all")
 ```
 
 ## Simulating the stock price from model(returns )
-## 4. ARMA(5,2)- eGARCH
+## 4. ARMA(4,2)- eGARCH
 ```{r}
 
 s <- ugarchspec(mean.model = list(armaOrder = c(4,2)),
@@ -261,13 +261,11 @@ plot(m , which="all")
 
 ```{r}
 
-#s <- ugarchspec(mean.model = list(armaOrder = c(5,2)),variance.model = list(model = "eGARCH"),distribution.model = 'sstd')
-
 m <- ugarchfit(data = return, spec = s)
 m
 sfinal <- s
 setfixed(sfinal) <- as.list(coef(m))
-# Forecasting for 3 year 
+# Forecasting for 10 days ahead 
 #f2020 <- ugarchforecast(data = return["/2020-12"], fitORspec = sfinal, n.ahead = 30, n.roll = 2663, out.sample = 2663)
 par(mfrow = c(1,1))
 #plot(sigma(f2020))
@@ -282,14 +280,7 @@ p <- 13981.75*apply(fitted(sim), 2, 'cumsum') + 13981.75
 matplot(p, type = "l", lwd = 3)
 ```
 
-## Forecasting for next 30 days
-```{r}
-n1_garch <- m
-n1_garch_predict <- ugarchboot(n1_garch, n.ahead = 10,method = c("Partial","Full")[1])
-n1_garch_predict
 
-plot(n1_garch_predict,which = "all")
-```
 
 
 
@@ -297,7 +288,7 @@ plot(n1_garch_predict,which = "all")
 
 ```{r}
 actual <- pdfetch_YAHOO(c("^nsei"),fields = c("close"),from = as.Date("2021-01-01"),to = as.Date("2021-01-15"))
-chart_Series(actual)
+#chart_Series(actual)
 
 z1 <- actual
 x <- c(1,2,3,4,5,6,7,8,9,10)
@@ -328,7 +319,7 @@ RMSE(pred, actual)
 
 ```{r}
 t=1:10
-z1= fact_check
+z1= actual
 x <- c(1,2,3,4,5,6,7,8,9,10)
 count <- 0
 for (i in x){
@@ -349,7 +340,7 @@ legend("left",14500,legend=c("Actual","Forecast"),col=c("green","red"),lty=1)
 ```
 ```{r}
 p[,2]
-z1= fact_check
+z1= actual
 x <- c(1,2,3,4,5,6,7,8,9,10)
 count <- 0
 for (i in x){
@@ -361,7 +352,14 @@ for (i in x){
 
 
 
+## Forecasting for next 30 days
+```{r}
+n1_garch <- m
+n1_garch_predict <- ugarchboot(n1_garch, n.ahead = 10,method = c("Partial","Full")[1])
+n1_garch_predict
 
+plot(n1_garch_predict,which = "all")
+```
 
 
 
